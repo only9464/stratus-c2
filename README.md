@@ -1,5 +1,9 @@
 # Stratus · A C2 Framework That Runs Entirely on Cloudflare's Free Tier
 
+[![ci](https://github.com/only9464/stratus-c2/actions/workflows/ci.yml/badge.svg)](https://github.com/only9464/stratus-c2/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+![Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020)
+
 > A command-and-control framework with **no server of your own**: two Workers, one Durable Object per
 > session, and D1 / KV / R2 / Cron — all on a single Cloudflare account's free plan.
 >

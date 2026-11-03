@@ -1,5 +1,9 @@
 # Stratus · 纯 Cloudflare 的 C2 框架（层云）
 
+[![ci](https://github.com/only9464/stratus-c2/actions/workflows/ci.yml/badge.svg)](https://github.com/only9464/stratus-c2/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+![Workers](https://img.shields.io/badge/runs%20on-Cloudflare%20Workers-f38020)
+
 > 一个**不需要任何自有服务器**的 C2 框架：服务端只用一个 Cloudflare 账号上的免费服务
 > （Workers / Durable Objects / D1 / KV / R2 / Queues / Cron），一个已托管到 Cloudflare 的域名即可开跑。
 >
