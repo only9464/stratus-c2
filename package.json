@@ -1,0 +1,31 @@
+{
+  "name": "stratus-c2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stratus —— 只用 Cloudflare 免费服务的 C2 框架（edge worker + console worker + D1/KV/R2/DO）",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm --filter @stratus/web build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev:web": "pnpm --filter @stratus/web dev",
+    "dev:edge": "wrangler dev -c workers/gateway/wrangler.jsonc --port 8787",
+    "dev:console": "wrangler dev -c workers/console/wrangler.jsonc --port 8788",
+    "deploy:edge": "wrangler deploy -c workers/gateway/wrangler.jsonc",
+    "deploy:console": "wrangler deploy -c workers/console/wrangler.jsonc",
+    "db:migrate": "wrangler d1 migrations apply stc2-core --remote",
+    "db:migrate:local": "wrangler d1 migrations apply stc2-core --local",
+    "db:studio": "wrangler d1 execute stc2-core --remote --command \"SELECT name FROM sqlite_master WHERE type='table';\"",
+    "fmt": "prettier --write \"**/*.{ts,vue,json,md,css}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.3",
+    "wrangler": "^4.156.2"
+  }
+}

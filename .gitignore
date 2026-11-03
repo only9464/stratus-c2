@@ -1,0 +1,39 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+.turbo/
+*.tsbuildinfo
+
+# cloudflare
+.wrangler/
+.dev.vars
+.dev.vars.*
+.wrangler-state/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.stc2key
+
+# editor / os
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# local artifacts
+runs/
+tmp/
+*.log
+coverage/
+
+# go build output
+clients/go/stc2-beacon
+clients/go/*.exe

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "stc2-edge",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "c2.example.com/*", "zone_name": "example.com" }],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "stc2-core", "database_id": "<D1_ID>" }
+  ],
+  "kv_namespaces": [
+    { "binding": "TOKENS", "id": "<KV_TOKENS_ID>" },
+    { "binding": "CONFIG", "id": "<KV_CONFIG_ID>" }
+  ],
+  "r2_buckets": [{ "binding": "R2", "bucket_name": "stc2" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "SESSION", "class_name": "SessionDO" },
+      { "name": "HUB", "class_name": "HubDO" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionDO", "HubDO"] }],
+  "vars": {
+    "ENV_NAME": "prod",
+    "META_MODE": "plain",
+    "EDGE_DECOY": "cdn",
+    "SESSION_TIMEOUT_SEC": "240"
+  },
+  "observability": { "enabled": true },
+  "limits": { "cpu_ms": 50 }
+}

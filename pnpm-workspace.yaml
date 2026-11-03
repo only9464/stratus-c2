@@ -1,0 +1,10 @@
+packages:
+  - "packages/*"
+  - "workers/*"
+  - "apps/*"
+
+# pnpm 10 默认不执行依赖的 postinstall；这两个必须有二进制才能构建/本地跑
+onlyBuiltDependencies:
+  - esbuild
+  - workerd
+  - sharp

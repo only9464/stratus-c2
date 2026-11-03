@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests (protocol + crypto)
+        run: pnpm test
+
+      - name: Build web
+        run: pnpm build
+
+      - name: Bundle gateway (dry run, no account needed)
+        run: npx wrangler deploy --dry-run --outdir .wrangler/out -c workers/gateway/wrangler.jsonc
+
+      - name: Bundle console (dry run, no account needed)
+        run: npx wrangler deploy --dry-run --outdir .wrangler/out -c workers/console/wrangler.jsonc
+
+  go-client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build -trimpath -ldflags "-s -w" -o /tmp/beacon .

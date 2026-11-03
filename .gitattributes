@@ -1,0 +1,12 @@
+# 统一换行符：仓库内一律 LF（Windows 检出也保持 LF，避免 diff 噪音）
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+
+# 生成物/第三方标记为语言统计忽略，避免 GitHub 把 lockfile 当主要语言
+pnpm-lock.yaml linguist-generated=true
+db/migrations/meta/*.json linguist-generated=true
+apps/web/src/components.d.ts linguist-generated=true

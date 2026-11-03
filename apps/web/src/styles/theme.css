@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/*
+ * 单一真源：shadcn-vue 风格的 token（oklch）。
+ * Element Plus 的 --el-* 变量由这里派生，见文末映射（详见 docs/05-frontend/01-design-system.md）。
+ */
+
+@theme {
+  --color-background: oklch(0.145 0 0);
+  --color-foreground: oklch(0.985 0 0);
+  --color-card: oklch(0.205 0 0);
+  --color-muted: oklch(0.269 0 0);
+  --color-muted-foreground: oklch(0.708 0 0);
+  --color-primary: oklch(0.68 0.16 264);
+  --color-primary-foreground: oklch(0.145 0 0);
+  --color-border: oklch(0.32 0 0);
+  --color-danger: oklch(0.62 0.21 25);
+  --color-warn: oklch(0.75 0.15 75);
+  --color-ok: oklch(0.7 0.17 150);
+  --radius: 0.625rem;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+html.light {
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.145 0 0);
+  --color-card: oklch(0.985 0 0);
+  --color-muted: oklch(0.96 0 0);
+  --color-muted-foreground: oklch(0.45 0 0);
+  --color-primary: oklch(0.55 0.18 264);
+  --color-primary-foreground: oklch(1 0 0);
+  --color-border: oklch(0.9 0 0);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 基础原子类（等价于 shadcn-vue 的 Button/Card/Badge 视觉） ── */
+
+.stc-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.stc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.stc-btn:hover {
+  background: var(--color-muted);
+}
+.stc-btn[data-variant="primary"] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.stc-btn[data-variant="danger"] {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: white;
+}
+.stc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stc-input {
+  height: 2rem;
+  width: 100%;
+  padding: 0 0.6rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-size: 13px;
+  outline: none;
+}
+.stc-input:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 30%, transparent);
+}
+
+.stc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--color-border);
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+}
+.stc-badge[data-tone="ok"] {
+  color: var(--color-ok);
+  border-color: color-mix(in oklch, var(--color-ok) 40%, transparent);
+}
+.stc-badge[data-tone="warn"] {
+  color: var(--color-warn);
+  border-color: color-mix(in oklch, var(--color-warn) 40%, transparent);
+}
+.stc-badge[data-tone="danger"] {
+  color: var(--color-danger);
+  border-color: color-mix(in oklch, var(--color-danger) 40%, transparent);
+}
+
+.stc-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ── Element Plus 变量映射（只用我们需要的那些） ── */
+
+:root {
+  --el-color-primary: var(--color-primary);
+  --el-bg-color: var(--color-card);
+  --el-bg-color-overlay: var(--color-card);
+  --el-fill-color-blank: var(--color-background);
+  --el-text-color-primary: var(--color-foreground);
+  --el-text-color-regular: var(--color-foreground);
+  --el-border-color: var(--color-border);
+  --el-border-color-light: var(--color-border);
+  --el-border-color-lighter: var(--color-border);
+  --el-border-radius-base: calc(var(--radius) - 2px);
+  --el-font-family: var(--font-sans);
+  --el-font-size-base: 13px;
+  --el-mask-color: color-mix(in oklch, var(--color-background) 80%, transparent);
+}
+
+.el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: var(--color-muted);
+  --el-table-border-color: var(--color-border);
+  --el-table-row-hover-bg-color: var(--color-muted);
+  font-size: 13px;
+}
+
+.el-scope .el-button {
+  font-family: inherit;
+}

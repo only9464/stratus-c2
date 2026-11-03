@@ -1,0 +1,20 @@
+{
+  "name": "@stratus/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./crypto": "./src/crypto.ts",
+    "./frames": "./src/frames.ts",
+    "./limits": "./src/limits.ts",
+    "./config": "./src/config.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

